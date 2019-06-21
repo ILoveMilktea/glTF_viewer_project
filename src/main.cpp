@@ -51,6 +51,23 @@ namespace kmuvcl {
 
       mat_rot(3, 3) = 1.0f;
       return mat_rot;
+    } // Quarternion 계산
+
+
+    const float MATH_PI = 3.14159265358979323846f;
+
+    template <typename T>
+    inline T rad2deg(T deg)
+    {
+      T rad = deg * (180.0f / MATH_PI);
+      return rad;
+    }
+
+    template <typename T>
+    inline T deg2rad(T rad)
+    {
+      T deg = rad * (MATH_PI / 180.0f);
+      return deg;
     }
   } // math
 } // kmuvcl
@@ -68,6 +85,7 @@ GLuint  program;          // 쉐이더 프로그램 객체의 레퍼런스 값
 GLint   loc_a_position;
 GLint   loc_a_normal;
 GLint   loc_a_texcoord;
+//GLint   loc_a_color;    // from simple_triangle
 
 GLint   loc_u_PVM;
 GLint   loc_u_M;
@@ -95,7 +113,7 @@ kmuvcl::math::mat4x4f   mat_PVM;
 
 void set_transform();
 ////////////////////////////////////////////////////////////////////////////////
-
+int camera_index = 0;
 ////////////////////////////////////////////////////////////////////////////////
 /// 렌더링 관련 변수 및 함수
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,6 +122,7 @@ tinygltf::Model model;
 GLuint position_buffer;
 GLuint normal_buffer;
 GLuint texcoord_buffer;
+GLuint color_buffer;    // from simple_triangle
 GLuint index_buffer;
 
 GLuint diffuse_texid;
@@ -317,6 +336,13 @@ void init_buffer_objects()
           glBufferData(bufferView.target, bufferView.byteLength,
             &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
         }
+        //else if (attrib.first.compare("COLOR_0") == 0)
+        //{
+          //glGenBuffers(1, &color_buffer);
+          //glBindBuffer(bufferView.target, color_buffer);
+          //glBufferData(bufferView.target, bufferView.byteLength,
+               //&buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
+        //} // from simple_triangle
       }
     }
   }
@@ -368,17 +394,78 @@ void init_texture_objects()
 
 void set_transform()
 {
-  //mat_view.set_to_identity();
-  mat_view = kmuvcl::math::translate(0.0f, 0.0f, -2.0f);
+  const std::vector<tinygltf::Node>& nodes = model.nodes;
+  const std::vector<tinygltf::Camera>& cameras = model.cameras;
 
-  //mat_proj.set_to_identity();
-  float fovy = 70.0f;
-  float aspectRatio = 1.0f;
-  float znear = 0.01f;
-  float zfar = 100.0f;
+  const tinygltf::Camera& camera = cameras[camera_index];
+  if (camera.type.compare("perspective") == 0)
+  {
+    float fovy = kmuvcl::math::rad2deg(camera.perspective.yfov);
+    float aspectRatio = camera.perspective.aspectRatio;
+    float znear = camera.perspective.znear;
+    float zfar = camera.perspective.zfar;
 
-  mat_proj = kmuvcl::math::perspective(fovy, aspectRatio, znear, zfar);
+    /*std::cout << "(camera.mode() == Camera::kPerspective)" << std::endl;
+    std::cout << "(fovy, aspect, n, f): " << fovy << ", " << aspectRatio << ", " << znear << ", " << zfar << std::endl;*/
+    mat_proj = kmuvcl::math::perspective(fovy, aspectRatio, znear, zfar);
+  }
+  else if(camera.type.compare("orthographic") == 0)
+  {
+    float xmag = camera.orthographic.xmag;
+    float ymag = camera.orthographic.ymag;
+    float znear = camera.orthographic.znear;
+    float zfar = camera.orthographic.zfar;
+
+    /*std::cout << "(camera.mode() == Camera::kOrtho)" << std::endl;
+    std::cout << "(xmag, ymag, n, f): " << xmag << ", " << ymag << ", " << znear << ", " << zfar << std::endl;*/
+    mat_proj = kmuvcl::math::ortho(-xmag, xmag, -ymag, ymag, znear, zfar);
+  }
+  else
+  {
+    //mat_view.set_to_identity();
+    mat_view = kmuvcl::math::translate(0.0f, 0.0f, -2.0f);
+    
+    //mat_proj.set_to_identity();
+    float fovy = 70.0f;
+    float aspectRatio = 1.0f;
+    float znear = 0.01f;
+    float zfar = 100.0f;
+
+    mat_proj = kmuvcl::math::perspective(fovy, aspectRatio, znear, zfar);
+  }
+  
+
+  for (const tinygltf::Node& node : nodes)
+  {
+    if (node.camera == camera_index)
+    {
+      mat_view.set_to_identity();
+      if (node.scale.size() == 3) {
+        mat_view = mat_view*kmuvcl::math::scale<float>(
+              1.0f / node.scale[0], 1.0f / node.scale[1], 1.0f / node.scale[2]);
+      }
+
+      if (node.rotation.size() == 4) {
+        mat_view = mat_view*kmuvcl::math::quat2mat(
+              node.rotation[0], node.rotation[1], node.rotation[2], node.rotation[3]).transpose();
+      }
+
+      if (node.translation.size() == 3) {
+        mat_view = mat_view*kmuvcl::math::translate<float>(
+              -node.translation[0], -node.translation[1], -node.translation[2]);
+      }      
+    }
+  }
 }
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+	if (key == GLFW_KEY_Q && action == GLFW_PRESS)
+	{
+		camera_index = camera_index == 0 ? 1 : 0;
+	}
+}
+
 
 void draw_node(const tinygltf::Node& node, kmuvcl::math::mat4f mat_model)
 {
@@ -583,11 +670,18 @@ int main(void)
   init_state();
   init_shader_program();
 
-  load_model(model, "BoxTextured/BoxTextured.gltf");
+  /////samples
+  // 1. samples/TriangleWithoutIndices/glTF/TriangleWithoutIndices.gltf
+  //
+  /////
+  load_model(model, "samples/TriangleWithoutIndices/glTF/TriangleWithoutIndices.gltf");
 
   // GPU의 VBO를 초기화하는 함수 호출
   init_buffer_objects();
   init_texture_objects();
+
+
+  glfwSetKeyCallback(window, key_callback);
 
   // Loop until the user closes the window
   while (!glfwWindowShouldClose(window))
