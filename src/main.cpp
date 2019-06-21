@@ -20,18 +20,22 @@
 #include "../common/transform.hpp"
 
   /////samples
-  // 1. ./shader/TriangleWithoutIndices/vertex.glsl
-  // 2. ./shader/BOX/vertex.glsl
+  // 1. "./shader/TriangleWithoutIndices/vertex.glsl"
+  // 2. "./shader/Box/vertex.glsl"
+  // 3. "./shader/BoxTextured/vertex.glsl"
+  // 4. "./shader/BoxVertexColors/vertex.glsl"
   /////
-#define VERTEX_SHADER_ROOT "./shader/Box/vertex.glsl"
-#define FRAGMENT_SHADER_ROOT "./shader/Box/fragment.glsl"
+#define VERTEX_SHADER_ROOT "./shader/Duck/vertex.glsl"
+#define FRAGMENT_SHADER_ROOT "./shader/Duck/fragment.glsl"
 
   /////samples
   // 0. BoxTextured/BoxTextured.gltf
-  // 1. samples/TriangleWithoutIndices/glTF/TriangleWithoutIndices.gltf
-  // 2. samples/BOX/glTF/BOX.gltf
+  // 1. "samples/TriangleWithoutIndices/glTF/TriangleWithoutIndices.gltf"
+  // 2. "samples/Box/glTF/BOX.gltf"
+  // 3. "samples/BoxTextured/glTF/BoxTextured.gltf"
+  // 4. "samples/BoxVertexColors/glTF/BoxVertexColors.gltf"
   /////
-#define GLTF_FILE_ROOT "samples/Box/glTF/Box.gltf"
+#define GLTF_FILE_ROOT "samples/Duck/glTF/Duck.gltf"
 
 namespace kmuvcl {
   namespace math {
@@ -99,7 +103,7 @@ GLuint  program;          // 쉐이더 프로그램 객체의 레퍼런스 값
 GLint   loc_a_position;
 GLint   loc_a_normal;
 GLint   loc_a_texcoord;
-//GLint   loc_a_color;    // from simple_triangle
+GLint   loc_a_color;    // from simple_triangle
 
 GLint   loc_u_PVM;
 GLint   loc_u_M;
@@ -137,7 +141,7 @@ tinygltf::Model model;
 GLuint position_buffer;
 GLuint normal_buffer;
 GLuint texcoord_buffer;
-//GLuint color_buffer;    // from simple_triangle
+GLuint color_buffer;    // from simple_triangle
 GLuint index_buffer;
 
 GLuint diffuse_texid;
@@ -146,10 +150,10 @@ kmuvcl::math::vec3f view_position_wc;
 
 kmuvcl::math::vec3f light_position_wc = kmuvcl::math::vec3f(0.0f, 1.0f, 1.0f);
 kmuvcl::math::vec4f light_diffuse = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
-kmuvcl::math::vec4f light_specular = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
+kmuvcl::math::vec4f light_specular = kmuvcl::math::vec4f(0.5f, 0.5f, 0.5f, 1.0f);
 
 kmuvcl::math::vec4f material_diffuse = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
-kmuvcl::math::vec4f material_specular = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
+kmuvcl::math::vec4f material_specular = kmuvcl::math::vec4f(0.5f, 0.5f, 0.5f, 1.0f);
 float               material_shininess = 60.0f;
 
 bool load_model(tinygltf::Model &model, const std::string filename);
@@ -272,6 +276,7 @@ void init_shader_program()
   loc_a_position = glGetAttribLocation(program, "a_position");
   loc_a_normal = glGetAttribLocation(program, "a_normal");
   loc_a_texcoord = glGetAttribLocation(program, "a_texcoord");
+  loc_a_color = glGetAttribLocation(program, "a_color");
 
   std::cout<<"hello program?";
 }
@@ -301,12 +306,8 @@ bool load_model(tinygltf::Model &model, const std::string filename)
   {
     std::cout << "Loaded glTF: " << filename << std::endl;
 
-  std::cout<<"hello model?";
   }
-  std::cout<<"hello model?";
-  std::cout<<"hello model?";
 
-  std::cout<<"hello model?";
   return res;
 }
 
@@ -360,13 +361,13 @@ void init_buffer_objects()
           glBufferData(bufferView.target, bufferView.byteLength,
             &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
         }
-        //else if (attrib.first.compare("COLOR_0") == 0)
-        //{
-          //glGenBuffers(1, &color_buffer);
-          //glBindBuffer(bufferView.target, color_buffer);
-          //glBufferData(bufferView.target, bufferView.byteLength,
-               //&buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
-        //} // from simple_triangle
+        else if (attrib.first.compare("COLOR_0") == 0)
+        {
+          glGenBuffers(1, &color_buffer);
+          glBindBuffer(bufferView.target, color_buffer);
+          glBufferData(bufferView.target, bufferView.byteLength,
+          &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
+        } // from simple_triangle
       }
     }
   }
@@ -405,14 +406,15 @@ void init_texture_objects()
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
       image.width, image.height, 0, format, type, &image.image[0]);
 
+    //\glGenerateMipmap(GL_TEXTURE_2D);
     //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, sampler.minFilter);
     //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, sampler.magFilter);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, sampler.wrapS);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, sampler.wrapT);
+    
 
-    //glGenerateMipmap(GL_TEXTURE_2D);
   }
 }
 
@@ -420,7 +422,8 @@ void init_texture_objects()
 void set_transform()
 {
   //mat_view.set_to_identity();
-  mat_view = kmuvcl::math::translate(0.0f, 0.0f, -2.0f);
+  mat_view = kmuvcl::math::translate(0.0f, -1.0f, -2.0f);
+  //mat_view = mat_view*kmuvcl::math::quat2mat(0.3f, 0.3f, 0.1f, 1.0f).transpose();
 
   //mat_proj.set_to_identity();
   float fovy = 70.0f;
@@ -520,8 +523,6 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
   glUniform4fv(loc_u_light_diffuse, 1, light_diffuse);
   glUniform4fv(loc_u_light_specular, 1, light_specular);
 
-
-  glUniform4fv(loc_u_material_diffuse, 1, material_diffuse);
   glUniform4fv(loc_u_material_specular, 1, material_specular);
   glUniform1f(loc_u_material_shininess, material_shininess);
 
@@ -542,20 +543,20 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
             glUniform1i(loc_u_diffuse_texture, 0);
           }
         }
-        if(parameter.first.compare("baseColorFactor") == 0)
+        else if(parameter.first.compare("baseColorFactor") == 0)
         {
-          std::cout<<parameter.second.number_array[0]<<parameter.second.number_array[1];
           material_diffuse = kmuvcl::math::vec4f(parameter.second.number_array[0],
                                                   parameter.second.number_array[1], 
                                                   parameter.second.number_array[2], 
                                                   parameter.second.number_array[3]); 
-          glUniform4fv(loc_u_material_specular, 1, material_diffuse);
           //kmuvcl::math::vec4f new_light_diffuse = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
           //light_diffuse = kmuvcl::math::vec4f(parameter.second.number_array[0], parameter.second.number_array[1], parameter.second.number_array[2], parameter.second.number_array[3]);
           //glUniform4fv(loc_u_light_diffuse, 1, light_diffuse);
         }
       }
     }
+
+    glUniform4fv(loc_u_material_diffuse, 1, material_diffuse);
 
     for (const std::pair<std::string, int>& attrib : primitive.attributes)
     {
@@ -592,6 +593,15 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
           accessor.normalized ? GL_TRUE : GL_FALSE, byteStride,
           BUFFER_OFFSET(accessor.byteOffset));
       }
+      else if (attrib.first.compare("COLOR_0") == 0)
+      {
+        glBindBuffer(bufferView.target, color_buffer);
+        glEnableVertexAttribArray(loc_a_color);
+        glVertexAttribPointer(loc_a_color,
+          accessor.type, accessor.componentType,
+          accessor.normalized ? GL_TRUE : GL_FALSE, byteStride,
+          BUFFER_OFFSET(accessor.byteOffset));
+      }
     }
 
     if(primitive.indices > -1)
@@ -620,6 +630,7 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
     glDisableVertexAttribArray(loc_a_texcoord);
     glDisableVertexAttribArray(loc_a_normal);
     glDisableVertexAttribArray(loc_a_position);
+    glDisableVertexAttribArray(loc_a_color);
   }
   glUseProgram(0);
 }
