@@ -19,6 +19,20 @@
 
 #include "../common/transform.hpp"
 
+  /////samples
+  // 1. ./shader/TriangleWithoutIndices/vertex.glsl
+  // 2. ./shader/BOX/vertex.glsl
+  /////
+#define VERTEX_SHADER_ROOT "./shader/Box/vertex.glsl"
+#define FRAGMENT_SHADER_ROOT "./shader/Box/fragment.glsl"
+
+  /////samples
+  // 0. BoxTextured/BoxTextured.gltf
+  // 1. samples/TriangleWithoutIndices/glTF/TriangleWithoutIndices.gltf
+  // 2. samples/BOX/glTF/BOX.gltf
+  /////
+#define GLTF_FILE_ROOT "samples/Box/glTF/Box.gltf"
+
 namespace kmuvcl {
   namespace math {
     template <typename T>
@@ -96,6 +110,7 @@ GLint   loc_u_light_position_wc;
 GLint   loc_u_light_diffuse;
 GLint   loc_u_light_specular;
 
+GLint   loc_u_material_diffuse;
 GLint   loc_u_material_specular;
 GLint   loc_u_material_shininess;
 
@@ -122,7 +137,7 @@ tinygltf::Model model;
 GLuint position_buffer;
 GLuint normal_buffer;
 GLuint texcoord_buffer;
-GLuint color_buffer;    // from simple_triangle
+//GLuint color_buffer;    // from simple_triangle
 GLuint index_buffer;
 
 GLuint diffuse_texid;
@@ -133,6 +148,7 @@ kmuvcl::math::vec3f light_position_wc = kmuvcl::math::vec3f(0.0f, 1.0f, 1.0f);
 kmuvcl::math::vec4f light_diffuse = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
 kmuvcl::math::vec4f light_specular = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
 
+kmuvcl::math::vec4f material_diffuse = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
 kmuvcl::math::vec4f material_specular = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
 float               material_shininess = 60.0f;
 
@@ -197,18 +213,17 @@ GLuint create_shader_from_file(const std::string& filename, GLuint shader_type)
 
   return shader;
 }
-
 // vertex shader와 fragment shader를 링크시켜 program을 생성하는 함수
 void init_shader_program()
 {
   GLuint vertex_shader
-    = create_shader_from_file("./shader/vertex.glsl", GL_VERTEX_SHADER);
+    = create_shader_from_file(VERTEX_SHADER_ROOT, GL_VERTEX_SHADER);
 
   std::cout << "vertex_shader id: " << vertex_shader << std::endl;
   assert(vertex_shader != 0);
 
   GLuint fragment_shader
-    = create_shader_from_file("./shader/fragment.glsl", GL_FRAGMENT_SHADER);
+    = create_shader_from_file(FRAGMENT_SHADER_ROOT, GL_FRAGMENT_SHADER);
 
   std::cout << "fragment_shader id: " << fragment_shader << std::endl;
   assert(fragment_shader != 0);
@@ -248,6 +263,7 @@ void init_shader_program()
   loc_u_light_diffuse = glGetUniformLocation(program, "u_light_diffuse");
   loc_u_light_specular = glGetUniformLocation(program, "u_light_specular");
 
+  loc_u_material_diffuse = glGetUniformLocation(program, "u_material_diffuse");
   loc_u_material_specular = glGetUniformLocation(program, "u_material_specular");
   loc_u_material_shininess = glGetUniformLocation(program, "u_material_shininess");
 
@@ -256,6 +272,8 @@ void init_shader_program()
   loc_a_position = glGetAttribLocation(program, "a_position");
   loc_a_normal = glGetAttribLocation(program, "a_normal");
   loc_a_texcoord = glGetAttribLocation(program, "a_texcoord");
+
+  std::cout<<"hello program?";
 }
 
 bool load_model(tinygltf::Model &model, const std::string filename)
@@ -282,10 +300,13 @@ bool load_model(tinygltf::Model &model, const std::string filename)
   else
   {
     std::cout << "Loaded glTF: " << filename << std::endl;
+
+  std::cout<<"hello model?";
   }
+  std::cout<<"hello model?";
+  std::cout<<"hello model?";
 
-  std::cout << std::endl;
-
+  std::cout<<"hello model?";
   return res;
 }
 
@@ -300,16 +321,19 @@ void init_buffer_objects()
   {
     for (const tinygltf::Primitive& primitive : mesh.primitives)
     {
-      const tinygltf::Accessor& accessor = accessors[primitive.indices];
-      const tinygltf::BufferView& bufferView = bufferViews[accessor.bufferView];
-      const tinygltf::Buffer& buffer = buffers[bufferView.buffer];
+      if (primitive.indices > -1)
+      {
+        const tinygltf::Accessor &accessor = accessors[0]; //primitive.indices
+        const tinygltf::BufferView &bufferView = bufferViews[accessor.bufferView];
+        const tinygltf::Buffer &buffer = buffers[bufferView.buffer];
 
-      glGenBuffers(1, &index_buffer);
-      glBindBuffer(bufferView.target, index_buffer);
-      glBufferData(bufferView.target, bufferView.byteLength,
-        &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
+        glGenBuffers(1, &index_buffer);
+        glBindBuffer(bufferView.target, index_buffer);
+        glBufferData(bufferView.target, bufferView.byteLength,
+                     &buffer.data.at(0) + bufferView.byteOffset, GL_STATIC_DRAW);
+      }
 
-      for (const auto& attrib : primitive.attributes)
+      for (const auto &attrib : primitive.attributes)
       {
         const tinygltf::Accessor& accessor = accessors[attrib.second];
         const tinygltf::BufferView& bufferView = bufferViews[accessor.bufferView];
@@ -392,71 +416,21 @@ void init_texture_objects()
   }
 }
 
+
 void set_transform()
 {
-  const std::vector<tinygltf::Node>& nodes = model.nodes;
-  const std::vector<tinygltf::Camera>& cameras = model.cameras;
+  //mat_view.set_to_identity();
+  mat_view = kmuvcl::math::translate(0.0f, 0.0f, -2.0f);
 
-  const tinygltf::Camera& camera = cameras[camera_index];
-  if (camera.type.compare("perspective") == 0)
-  {
-    float fovy = kmuvcl::math::rad2deg(camera.perspective.yfov);
-    float aspectRatio = camera.perspective.aspectRatio;
-    float znear = camera.perspective.znear;
-    float zfar = camera.perspective.zfar;
+  //mat_proj.set_to_identity();
+  float fovy = 70.0f;
+  float aspectRatio = 1.0f;
+  float znear = 0.01f;
+  float zfar = 100.0f;
 
-    /*std::cout << "(camera.mode() == Camera::kPerspective)" << std::endl;
-    std::cout << "(fovy, aspect, n, f): " << fovy << ", " << aspectRatio << ", " << znear << ", " << zfar << std::endl;*/
-    mat_proj = kmuvcl::math::perspective(fovy, aspectRatio, znear, zfar);
-  }
-  else if(camera.type.compare("orthographic") == 0)
-  {
-    float xmag = camera.orthographic.xmag;
-    float ymag = camera.orthographic.ymag;
-    float znear = camera.orthographic.znear;
-    float zfar = camera.orthographic.zfar;
-
-    /*std::cout << "(camera.mode() == Camera::kOrtho)" << std::endl;
-    std::cout << "(xmag, ymag, n, f): " << xmag << ", " << ymag << ", " << znear << ", " << zfar << std::endl;*/
-    mat_proj = kmuvcl::math::ortho(-xmag, xmag, -ymag, ymag, znear, zfar);
-  }
-  else
-  {
-    //mat_view.set_to_identity();
-    mat_view = kmuvcl::math::translate(0.0f, 0.0f, -2.0f);
-    
-    //mat_proj.set_to_identity();
-    float fovy = 70.0f;
-    float aspectRatio = 1.0f;
-    float znear = 0.01f;
-    float zfar = 100.0f;
-
-    mat_proj = kmuvcl::math::perspective(fovy, aspectRatio, znear, zfar);
-  }
-  
-
-  for (const tinygltf::Node& node : nodes)
-  {
-    if (node.camera == camera_index)
-    {
-      mat_view.set_to_identity();
-      if (node.scale.size() == 3) {
-        mat_view = mat_view*kmuvcl::math::scale<float>(
-              1.0f / node.scale[0], 1.0f / node.scale[1], 1.0f / node.scale[2]);
-      }
-
-      if (node.rotation.size() == 4) {
-        mat_view = mat_view*kmuvcl::math::quat2mat(
-              node.rotation[0], node.rotation[1], node.rotation[2], node.rotation[3]).transpose();
-      }
-
-      if (node.translation.size() == 3) {
-        mat_view = mat_view*kmuvcl::math::translate<float>(
-              -node.translation[0], -node.translation[1], -node.translation[2]);
-      }      
-    }
-  }
+  mat_proj = kmuvcl::math::perspective(fovy, aspectRatio, znear, zfar);
 }
+
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
@@ -533,7 +507,7 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
 
   glUseProgram(program);
 
-  mat_PVM = mat_proj * mat_view*mat_model;
+  mat_PVM = mat_proj * mat_view * mat_model;
   glUniformMatrix4fv(loc_u_PVM, 1, GL_FALSE, mat_PVM);
   glUniformMatrix4fv(loc_u_M, 1, GL_FALSE, mat_model);
 
@@ -546,6 +520,8 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
   glUniform4fv(loc_u_light_diffuse, 1, light_diffuse);
   glUniform4fv(loc_u_light_specular, 1, light_specular);
 
+
+  glUniform4fv(loc_u_material_diffuse, 1, material_diffuse);
   glUniform4fv(loc_u_material_specular, 1, material_specular);
   glUniform1f(loc_u_material_shininess, material_shininess);
 
@@ -565,6 +541,18 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
 
             glUniform1i(loc_u_diffuse_texture, 0);
           }
+        }
+        if(parameter.first.compare("baseColorFactor") == 0)
+        {
+          std::cout<<parameter.second.number_array[0]<<parameter.second.number_array[1];
+          material_diffuse = kmuvcl::math::vec4f(parameter.second.number_array[0],
+                                                  parameter.second.number_array[1], 
+                                                  parameter.second.number_array[2], 
+                                                  parameter.second.number_array[3]); 
+          glUniform4fv(loc_u_material_specular, 1, material_diffuse);
+          //kmuvcl::math::vec4f new_light_diffuse = kmuvcl::math::vec4f(1.0f, 1.0f, 1.0f, 1.0f);
+          //light_diffuse = kmuvcl::math::vec4f(parameter.second.number_array[0], parameter.second.number_array[1], parameter.second.number_array[2], parameter.second.number_array[3]);
+          //glUniform4fv(loc_u_light_diffuse, 1, light_diffuse);
         }
       }
     }
@@ -606,15 +594,27 @@ void draw_mesh(const tinygltf::Mesh& mesh, const kmuvcl::math::mat4f& mat_model)
       }
     }
 
-    const tinygltf::Accessor& index_accessor = accessors[primitive.indices];
-    const tinygltf::BufferView& bufferView = bufferViews[index_accessor.bufferView];
+    if(primitive.indices > -1)
+    {
+      const tinygltf::Accessor& index_accessor = accessors[primitive.indices];
+      const tinygltf::BufferView& bufferView = bufferViews[index_accessor.bufferView];
     
-    glBindBuffer(bufferView.target, index_buffer);
+      glBindBuffer(bufferView.target, index_buffer);
+      glDrawElements(primitive.mode, index_accessor.count, index_accessor.componentType, BUFFER_OFFSET(index_accessor.byteOffset));    
+    }
+    else
+    {
+      glDrawArrays(GL_TRIANGLES, 0, 3);
+    }
+    //const tinygltf::Accessor& index_accessor = accessors[0];
+    //const tinygltf::BufferView& bufferView = bufferViews[index_accessor.bufferView];
+    
+    //glBindBuffer(bufferView.target, index_buffer);
+    
+    //glDrawArrays(4, 0, 3);
 
-    glDrawElements(primitive.mode,
-      index_accessor.count,
-      index_accessor.componentType,
-      BUFFER_OFFSET(index_accessor.byteOffset));    
+    //glDrawElements(primitive.mode, index_accessor.count, index_accessor.componentType, BUFFER_OFFSET(index_accessor.byteOffset));    
+    //glDrawElements(4, 3, 5126, BUFFER_OFFSET(0));    
 
     // 정점 attribute 배열 비활성화
     glDisableVertexAttribArray(loc_a_texcoord);
@@ -670,11 +670,7 @@ int main(void)
   init_state();
   init_shader_program();
 
-  /////samples
-  // 1. samples/TriangleWithoutIndices/glTF/TriangleWithoutIndices.gltf
-  //
-  /////
-  load_model(model, "samples/TriangleWithoutIndices/glTF/TriangleWithoutIndices.gltf");
+  load_model(model, GLTF_FILE_ROOT);
 
   // GPU의 VBO를 초기화하는 함수 호출
   init_buffer_objects();
@@ -686,6 +682,7 @@ int main(void)
   // Loop until the user closes the window
   while (!glfwWindowShouldClose(window))
   {
+
     glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
